@@ -35,7 +35,7 @@ sample_data <- read_tsv("metadata.txt",
                         col_types = "ccccccccc")
 print(sample_data)
 
-# Now lets remove samples 2823, 2677a, 2945a, 2626a, 2888a and blanks from the dataset 
+# Now lets remove low read samples 2823, 2677a, 2945a, 2626a, 2888a and blanks from the dataset 
 # (2823 was an anomoly in the nMDS and the rest are replicate samples with low total reads and were therofore removed so as not to limit the rarfied reads as drastically)
 # first from otu_data
 otu_data <- select(otu_data, -c("2823-18S","2677a-18S","2945a-18S","2626a-18S","2888b-18S","2500-18S","2570-18S","2629-1-18S","2800-18S","2833-18S","2892-18S","Blank-18S"))# removes 2823,2677a,2945a & blanks
