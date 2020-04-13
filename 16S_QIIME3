@@ -1,0 +1,125 @@
+# use lines 2-4 for cluster computing
+#!/bin/bash
+#PBS -l nodes=1:ppn=16
+#PBS -l walltime=03:00:00
+
+# use the table.qvz to decide the sampling depth for alpha and beta diversity analysis
+#   you need a compromise to get as greater sampling depth as possible without excluding too many samples
+
+# check which parameters you want to compare with PERMANOVA and adjust code/filenames accordingly
+
+# choose a value for alpha-rarefaction plotting from the table.qzv - approx the median frequency usually works
+
+# check that reference dataset file names are correct
+
+# make sure the correct primers are used to extract reference reads and the min max length = amplicon read length +F +R primer length +- 10%
+
+# opening Qiime 2
+module load qiime/2019.1
+source activate /local/software/qiime/2019.1
+cd $PBS_O_WORKDIR
+
+# alpha and beta diversity analysis
+qiime diversity core-metrics-phylogenetic \
+  --i-phylogeny rooted-tree.qza \
+  --i-table table.qza \
+  --p-sampling-depth 25700 \
+  --m-metadata-file metadata.txt \
+  --output-dir core-metrics-results
+
+# test for significant associations between categorical metadata columns and alpha diversity
+  qiime diversity alpha-group-significance \
+    --i-alpha-diversity core-metrics-results/faith_pd_vector.qza \
+    --m-metadata-file metadata.txt \
+    --o-visualization core-metrics-results/faith-pd-group-significance.qzv
+
+  qiime diversity alpha-group-significance \
+    --i-alpha-diversity core-metrics-results/evenness_vector.qza \
+    --m-metadata-file metadata.txt \
+    --o-visualization core-metrics-results/evenness-group-significance.qzv
+
+# PERMANOVA
+qiime diversity beta-group-significance \
+  --i-distance-matrix core-metrics-results/unweighted_unifrac_distance_matrix.qza \
+  --m-metadata-file metadata.txt \
+  --m-metadata-column Region \
+  --o-visualization core-metrics-results/unweighted-unifrac-Region-significance.qzv \
+  --p-pairwise
+
+qiime diversity beta-group-significance \
+  --i-distance-matrix core-metrics-results/unweighted_unifrac_distance_matrix.qza \
+  --m-metadata-file metadata.txt \
+  --m-metadata-column Method \
+  --o-visualization core-metrics-results/unweighted-unifrac-Method-group-significance.qzv \
+  --p-pairwise
+
+# create emperor plots with PC1, PC2 and time-series
+qiime emperor plot \
+  --i-pcoa core-metrics-results/unweighted_unifrac_pcoa_results.qza \
+  --m-metadata-file metadata.txt \
+  --p-custom-axes Date_Time \
+  --o-visualization core-metrics-results/unweighted-unifrac-emperor-Date_Time.qzv
+
+qiime emperor plot \
+  --i-pcoa core-metrics-results/bray_curtis_pcoa_results.qza \
+  --m-metadata-file metadata.txt \
+  --p-custom-axes Date_Time \
+  --o-visualization core-metrics-results/bray-curtis-emperor-Date_Time.qzv
+
+  # Alpha rarefaction plotting - get max depth from table.qzv choose a value around median frequency
+  qiime diversity alpha-rarefaction \
+    --i-table table.qza \
+    --i-phylogeny rooted-tree.qza \
+    --p-max-depth 45200 \
+    --m-metadata-file metadata.txt \
+    --o-visualization alpha-rarefaction.qzv
+
+  # Obtaining and importing reference dataset (for most recent dataset visit https://www.arb-silva.de/no_cache/download/archive/qiime/)
+  # Download latest release
+  #   get fna from rep_set/rep_set_18S_only/99/*.fna
+  #   get taxonomy.txt from taxonomy/16S_only/99/
+  # Copy and import reference dataset
+  cp silva_132_99_16S.fna silva_132_99_16S.fasta
+  qiime tools import \
+   --type 'FeatureData[Sequence]' \
+   --input-path silva_132_99_16S.fasta \
+   --output-path 99_16S_otus.qza
+
+  qiime tools import \
+   --type 'FeatureData[Taxonomy]' \
+   --input-format HeaderlessTSVTaxonomyFormat \
+   --input-path taxonomy_7_levels.txt \
+   --output-path ref-taxonomy.qza
+
+  # Extract reference reads  - read length +F +R primer length +- 10%
+  qiime feature-classifier extract-reads \
+    --i-sequences 99_16S_otus.qza \
+    --p-f-primer CCTACGGGNBGCASCAG \
+    --p-r-primer GACTACNVGGGTATCTAATCC \
+    --p-min-length 450 \
+    --p-max-length 550 \
+    --o-reads ref-seqs.qza
+
+  # Train the classifier
+  qiime feature-classifier fit-classifier-naive-bayes \
+    --i-reference-reads ref-seqs.qza \
+    --i-reference-taxonomy ref-taxonomy.qza \
+    --o-classifier classifier.qza
+
+  # Taxonomic analysis
+  qiime feature-classifier classify-sklearn \
+    --p-n-jobs -1 \
+    --i-classifier classifier.qza \
+    --i-reads rep-seqs.qza \
+    --o-classification taxonomy.qza
+
+  qiime metadata tabulate \
+    --m-input-file taxonomy.qza \
+    --o-visualization taxonomy.qzv
+
+  # Create taxa barplots
+  qiime taxa barplot \
+    --i-table table.qza \
+    --i-taxonomy taxonomy.qza \
+    --m-metadata-file metadata.txt \
+    --o-visualization taxa-bar-plots.qzv
