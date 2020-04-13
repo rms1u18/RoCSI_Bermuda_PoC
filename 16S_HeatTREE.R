@@ -41,7 +41,7 @@ sample_data <- read_tsv("metadata.txt",
                         col_types = "cccccccccccccc")
 print(sample_data)
 
-# Now lets remove samples 2823, 2677a, 2945a, 2626a, 2888a and blanks from the dataset
+# Now lets remove low read samples 2823, 2677a, 2945a, 2626a, 2888a and blanks from the dataset
 # first from otu_data
 otu_data <- select(otu_data, -c("2677a-16S","2945b-16S","2626b-16S","2888b-16S","2500-16S","2570-16S","2629-1-16S","2800-16S","2833-16S","2892-16S","Blank-16S"))# removes 2823,2677a,2945a & blanks
 # then from sample_data
