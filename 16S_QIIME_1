@@ -1,0 +1,54 @@
+# use lines 2-4 for cluster computing
+#!/bin/bash
+#PBS -l nodes=1:ppn=16
+#PBS -l walltime=0:40:00
+
+# To start you will need  a project directory containing:
+#   this bin/bash file
+#   a directory with the rawreads
+#   metadata.txt/metadata.tsv
+#   latest Silva 16S only .fasta (copy from .fna)
+#   latest Silva 16S only taxonomy_7_levels.txt
+
+# Pipeline check list:
+#   check that primers are correct for the current project
+#   check that ppn and core number match
+
+# opening Qiime 2
+module load qiime/2019.1
+source activate /local/software/qiime/2019.1
+cd $PBS_O_WORKDIR
+
+# import raw sequences
+qiime tools import \
+--type 'SampleData[PairedEndSequencesWithQuality]' \
+--input-path rawreads \
+--input-format CasavaOneEightSingleLanePerSampleDirFmt \
+--output-path demux-paired-end.qza
+
+# import metadata file
+qiime metadata tabulate \
+--m-input-file metadata.txt \
+--o-visualization tabulated-sample-metadata.qzv
+
+# show number of rawreads and quality
+qiime demux summarize \
+  --i-data demux-paired-end.qza \
+  --o-visualization demux-summary.qzv
+
+# trim primers
+qiime cutadapt trim-paired \
+--i-demultiplexed-sequences demux-paired-end.qza \
+--p-cores 16 \
+--o-trimmed-sequences trimmed-paired-end.qza \
+--p-front-f CCTACGGGNBGCASCAG \
+--p-front-r GACTACNVGGGTATCTAATCC
+
+# show number of trimmed reads and quality
+qiime demux summarize \
+  --i-data trimmed-paired-end.qza \
+  --o-visualization trimmed-summary.qzv
+
+# look at the trimmed-summary.qzv interactive quality plots in QIIME2view to decide where to trim the forward and reverse read in dada2
+#   aim to have atleast a medium quality score of >20
+#   and overlap of >20 bases
